@@ -42,17 +42,6 @@ static char *dummy_file = NULL;
 
 static iconv_t filename_converter = (iconv_t)(-1);
 
-static char *
-strdup_end (const char *start, const char *end)
-{
-  char *res;
-
-  res = malloc (end - start + 1);
-  memcpy (res, start, end - start);
-  res[end-start] = 0;
-  return res;
-}
-
 static void
 remove_trailing_whitespace (char *s)
 {
@@ -664,7 +653,7 @@ localize_path_name (const char *path)
 	path++;
       element_end = path;
 
-      element_copy = strdup_end (element, element_end);
+      element_copy = g_strndup (element, element_end - element);
       translated = gettext (element_copy);
 
       res = realloc (res, strlen (res) + 1 + strlen (translated) + 1);
@@ -672,7 +661,7 @@ localize_path_name (const char *path)
 	strcat (res, "/");
       strcat (res, translated);
       
-      free (element_copy);
+      g_free (element_copy);
     }
   
   return res;
