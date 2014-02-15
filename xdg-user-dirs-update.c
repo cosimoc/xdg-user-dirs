@@ -485,28 +485,26 @@ load_user_dirs (void)
 static void
 save_locale (void)
 {
-  FILE *file;
   char *user_locale_file;
   char *locale, *dot;
+  GError *error = NULL;
 
   user_locale_file = get_user_config_file ("user-dirs.locale");
-  file = fopen (user_locale_file, "w");
-  g_free (user_locale_file);
   
-  if (file == NULL)
-    {
-      g_printerr ("Can't save user-dirs.locale\n");
-      return;
-    }
-
   locale = g_strdup (setlocale (LC_MESSAGES, NULL));
   /* Skip encoding part */
   dot = strchr (locale, '.');
   if (dot)
     *dot = 0;
-  fprintf (file, "%s", locale);
+
+  if (!g_file_set_contents (user_locale_file, locale, -1, &error))
+    {
+      g_printerr ("Can't save user-dirs.locale: %s\n", error->message);
+      g_error_free (error);
+    }
+
+  g_free (user_locale_file);
   g_free (locale);
-  fclose (file);
 }
 
 static gboolean
