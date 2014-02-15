@@ -61,7 +61,7 @@ shell_unescape (char *escaped)
   char *unescaped;
   char *d;
 
-  unescaped = malloc (strlen (escaped) + 1);
+  unescaped = g_malloc (strlen (escaped) + 1);
 
   d = unescaped;
 
@@ -81,7 +81,7 @@ shell_escape (char *unescaped)
   char *escaped;
   char *d;
 
-  escaped = malloc (strlen (unescaped) * 2 + 1);
+  escaped = g_malloc (strlen (unescaped) * 2 + 1);
 
   d = escaped;
 
@@ -178,8 +178,7 @@ get_config_files (char *filename)
   char **paths, **config_paths;
 
   numfiles = 0;
-  paths = malloc (sizeof (char *));
-  paths[0] = NULL;
+  paths = g_new0 (char *, 1);
 
   file = get_user_config_file (filename);
   if (file)
@@ -227,7 +226,7 @@ add_directory (Directory *dirs, Directory *dir)
   
   if (dirs == NULL)
     {
-      new_dirs = malloc (sizeof (Directory) * 2);
+      new_dirs = g_new0 (Directory, 2);
       new_dirs[0] = *dir;
       new_dirs[1].name = NULL;
     }
@@ -235,7 +234,7 @@ add_directory (Directory *dirs, Directory *dir)
     {
       for (i = 0; dirs[i].name != NULL; i++)
 	;
-      new_dirs = realloc (dirs, (i + 2) * sizeof (Directory));
+      new_dirs = g_realloc (dirs, (i + 2) * sizeof (Directory));
       new_dirs[i] = *dir;
       new_dirs[i+1].name = NULL;
     }
@@ -560,7 +559,7 @@ save_user_dirs (void)
       goto out;
     }
   
-  tmp_file = malloc (strlen (user_config_file) + 6 + 1);
+  tmp_file = g_malloc (strlen (user_config_file) + 6 + 1);
   strcpy (tmp_file, user_config_file);
   strcat (tmp_file, "XXXXXX");
   
@@ -606,7 +605,7 @@ save_user_dirs (void)
 		   user_dirs[i].name,
                    relative_prefix,
 		   escaped);
-	  free (escaped);
+	  g_free (escaped);
 	}
     }
 
@@ -621,8 +620,7 @@ save_user_dirs (void)
 
  out:
   g_free (dir);
-  if (tmp_file)
-    free (tmp_file);
+  g_free (tmp_file);
   g_free (user_config_file);
   return res;
 }
@@ -656,7 +654,7 @@ localize_path_name (const char *path)
       element_copy = g_strndup (element, element_end - element);
       translated = gettext (element_copy);
 
-      res = realloc (res, strlen (res) + 1 + strlen (translated) + 1);
+      res = g_realloc (res, strlen (res) + 1 + strlen (translated) + 1);
       if (has_slash)
 	strcat (res, "/");
       strcat (res, translated);
@@ -785,7 +783,7 @@ create_dirs (int force)
 		  /* We forced an update */
 		  fprintf (stdout, "Moving %s directory from %s to %s\n",
 			   default_dir->name, user_dir->path, relative_path_name);
-		  free (user_dir->path);
+		  g_free (user_dir->path);
 		  user_dir->path = g_strdup (relative_path_name);
 		}
 	    }
@@ -908,7 +906,7 @@ main (int argc, char *argv[])
       dir = find_dir (user_dirs, set_dir);
       if (dir != NULL)
 	{
-	  free (dir->path);
+	  g_free (dir->path);
 	  dir->path = g_strdup (path);
 	}
       else
