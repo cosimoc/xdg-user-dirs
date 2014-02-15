@@ -28,8 +28,8 @@ Directory backwards_compat_dirs[] = {
   { NULL}
 };
 
-static Directory *default_dirs = NULL;
-static Directory *user_dirs = NULL;
+static GList *default_dirs = NULL;
+static GList *user_dirs = NULL;
 static gboolean user_dirs_changed = FALSE;
 
 /* Config: */
@@ -41,6 +41,16 @@ static char *filename_encoding = NULL; /* NULL => utf8 */
 static char *dummy_file = NULL;
 
 static iconv_t filename_converter = (iconv_t)(-1);
+
+static Directory *
+directory_new (const char *name, const char *path)
+{
+  Directory *dir;
+  dir = g_new0 (Directory, 1);
+  dir->name = g_strdup (name);
+  dir->path = g_strdup (path);
+  return dir;
+}
 
 static void
 remove_trailing_whitespace (char *s)
@@ -168,27 +178,22 @@ get_user_config_file (const char *filename)
   return file;
 }
 
-static char **
+static GList *
 get_config_files (char *filename)
 {
   int i;
-  int numfiles;
   char *config_dirs;
   char *file;
-  char **paths, **config_paths;
+  char **config_paths;
+  GList *paths;
 
-  numfiles = 0;
-  paths = g_new0 (char *, 1);
+  paths = NULL;
 
   file = get_user_config_file (filename);
   if (file)
     {
       if (g_file_test (file, G_FILE_TEST_IS_REGULAR))
-	{
-	  paths = realloc (paths, sizeof (char *) * (numfiles + 2));
-	  paths[numfiles++] = file;
-	  paths[numfiles] = NULL;
-	}
+        paths = g_list_prepend (paths, file);
       else
 	g_free (file);
     }
@@ -203,11 +208,7 @@ get_config_files (char *filename)
     {
       file = g_build_filename (config_paths[i], filename, NULL);
       if (g_file_test (file, G_FILE_TEST_IS_REGULAR))
-	{
-	  paths = realloc (paths, sizeof (char *) * (numfiles + 2));
-	  paths[numfiles++] = file;
-	  paths[numfiles] = NULL;
-	}
+        paths = g_list_prepend (paths, file);
       else
 	g_free (file);
       g_free (config_paths[i]);
@@ -215,30 +216,7 @@ get_config_files (char *filename)
   
   g_free (config_paths);
 
-  return paths;
-}
-
-static Directory *
-add_directory (Directory *dirs, Directory *dir)
-{
-  Directory *new_dirs;
-  int i;
-  
-  if (dirs == NULL)
-    {
-      new_dirs = g_new0 (Directory, 2);
-      new_dirs[0] = *dir;
-      new_dirs[1].name = NULL;
-    }
-  else
-    {
-      for (i = 0; dirs[i].name != NULL; i++)
-	;
-      new_dirs = g_realloc (dirs, (i + 2) * sizeof (Directory));
-      new_dirs[i] = *dir;
-      new_dirs[i+1].name = NULL;
-    }
-  return new_dirs;
+  return g_list_reverse (paths);
 }
 
 static gboolean
@@ -319,19 +297,16 @@ load_config (char *path)
 static void
 load_all_configs (void)
 {
-  char **paths;
-  int i;
+  GList *paths, *l;
   
   paths = get_config_files ("user-dirs.conf");
 
   /* Load config files in reverse */
-  for (i = 0; paths[i] != NULL; i++)
-    ;
+  for (l = g_list_last (paths); l != NULL; l = l->prev)
+    load_config (l->data);
 
-  while (--i >= 0)
-    load_config (paths[i]);
-  
-  g_strfreev (paths);
+  g_list_foreach (paths, (GFunc) g_free, NULL);
+  g_list_free (paths);
 }
 
 static void
@@ -342,20 +317,20 @@ load_default_dirs (void)
   char *p;
   char *key, *key_end, *value;
   int len;
-  Directory dir;
-  char **paths;
+  Directory *dir;
+  GList *paths;
   
   paths = get_config_files ("user-dirs.defaults");
-  if (paths[0] == NULL)
+  if (paths == NULL)
     {
       g_printerr ("No default user directories\n");
       exit (1);
     }
   
-  file = fopen (paths[0], "r");
+  file = fopen (paths->data, "r");
   if (file == NULL)
     {
-      g_printerr ("Can't open %s\n", paths[0]);
+      g_printerr ("Can't open %s\n", (char *) paths->data);
       exit (1);
     }
 
@@ -394,13 +369,15 @@ load_default_dirs (void)
       if (*key == 0 || *value == 0)
 	continue;
       
-      dir.name = g_strdup (key);
-      dir.path = g_strdup (value);
-      default_dirs = add_directory (default_dirs, &dir);
+      dir = directory_new (key, value);
+      default_dirs = g_list_prepend (default_dirs, dir);
     }
 
+  default_dirs = g_list_reverse (default_dirs);
+
   fclose (file);
-  g_strfreev (paths);
+  g_list_foreach (paths, (GFunc) g_free, NULL);
+  g_list_free (paths);
 }
 
 static void
@@ -410,8 +387,9 @@ load_user_dirs (void)
   char buffer[512];
   char *p;
   char *key, *key_end, *value, *value_end;
+  char *unescaped;
   int len;
-  Directory dir;
+  Directory *dir;
   char *user_config_file;
 
   user_config_file = get_user_config_file ("user-dirs.dirs");
@@ -493,10 +471,13 @@ load_user_dirs (void)
       if (*key == 0)
 	continue;
 
-      dir.name = g_strdup (key);
-      dir.path = shell_unescape (value);
-      user_dirs = add_directory (user_dirs, &dir);
+      unescaped = shell_unescape (value);
+      dir = directory_new (key, unescaped);
+      user_dirs = g_list_prepend (user_dirs, dir);
+      g_free (unescaped);
     }
+
+  user_dirs = g_list_reverse (user_dirs);
 
   fclose (file);
 }
@@ -534,7 +515,8 @@ save_user_dirs (void)
   FILE *file;
   char *user_config_file;
   char *tmp_file;
-  int i;
+  GList *l;
+  Directory *user_dir;
   int tmp_fd;
   gboolean res;
   char *dir, *slash;
@@ -588,25 +570,24 @@ save_user_dirs (void)
   fprintf (file, "# absolute path. No other format is supported.\n");
   fprintf (file, "# \n");
 
-  if (user_dirs)
+  for (l = user_dirs; l != NULL; l = l->next)
     {
-      for (i = 0; user_dirs[i].name != NULL; i++)
-	{
-          char *escaped;
-          const char *relative_prefix;
+      char *escaped;
+      const char *relative_prefix;
 
-	  escaped = shell_escape (user_dirs[i].path);
-          if (g_path_is_absolute (escaped))
-            relative_prefix = "";
-          else
-            relative_prefix = "$HOME/";
+      user_dir = l->data;
 
-	  fprintf (file, "XDG_%s_DIR=\"%s%s\"\n",
-		   user_dirs[i].name,
-                   relative_prefix,
-		   escaped);
-	  g_free (escaped);
-	}
+      escaped = shell_escape (user_dir->path);
+      if (g_path_is_absolute (escaped))
+        relative_prefix = "";
+      else
+        relative_prefix = "$HOME/";
+
+      fprintf (file, "XDG_%s_DIR=\"%s%s\"\n",
+               user_dir->name,
+               relative_prefix,
+               escaped);
+      g_free (escaped);
     }
 
   fclose (file);
@@ -678,17 +659,19 @@ lookup_backwards_compat (Directory *dir)
 }
 
 static Directory *
-find_dir (Directory *dirs, const char *name)
+find_dir (GList *dirs, const char *name)
 {
-  int i;
+  Directory *dir;
+  GList *l;
 
   if (dirs == NULL)
     return NULL;
   
-  for (i = 0; dirs[i].name != NULL; i++)
+  for (l = dirs; l != NULL; l = l->next)
     {
-      if (strcmp (dirs[i].name, name) == 0)
-	return &dirs[i];
+      dir = l->data;
+      if (strcmp (dir->name, name) == 0)
+	return dir;
     }
   return NULL;
 }
@@ -696,18 +679,13 @@ find_dir (Directory *dirs, const char *name)
 static void
 create_dirs (int force)
 {
-  int i;
-  Directory dir;
-  Directory *user_dir, *default_dir, *compat_dir;
+  GList *l;
+  Directory *dir, *user_dir, *default_dir, *compat_dir;
   char *path_name, *relative_path_name, *translated_name;
 
-  if (default_dirs == NULL)
-    return;
-  
-  for (i = 0; default_dirs[i].name != NULL; i++)
+  for (l = default_dirs; l != NULL; l = l->next)
     {
-      default_dir = &default_dirs[i];
-      user_dir = NULL;
+      default_dir = l->data;
       user_dir = find_dir (user_dirs, default_dir->name);
 
       if (user_dir && !force)
@@ -774,9 +752,8 @@ create_dirs (int force)
 	      user_dirs_changed = TRUE;
 	      if (user_dir == NULL)
 		{
-		  dir.name = g_strdup (default_dir->name);
-		  dir.path = g_strdup (relative_path_name);
-		  user_dirs = add_directory (user_dirs, &dir);
+                  dir = directory_new (default_dir->name, relative_path_name);
+		  user_dirs = g_list_append (user_dirs, dir);
 		}
 	      else
 		{
@@ -911,12 +888,10 @@ main (int argc, char *argv[])
 	}
       else
 	{
-	  Directory new_dir;
+	  Directory *new_dir;
 
-	  new_dir.name = g_strdup (set_dir);
-	  new_dir.path = g_strdup (path);
-	  
-	  user_dirs = add_directory (user_dirs, &new_dir);
+          new_dir = directory_new (set_dir, path);
+	  user_dirs = g_list_append (user_dirs, new_dir);
 	}
       if (!save_user_dirs ())
 	return 1;
@@ -931,7 +906,7 @@ main (int argc, char *argv[])
       load_default_dirs ();
       load_user_dirs ();
       
-      was_empty = (user_dirs == NULL) || (user_dirs->name == NULL);
+      was_empty = (user_dirs == NULL);
       
       create_dirs (force);
       
