@@ -820,16 +820,17 @@ parse_argv (int argc, char *argv[])
     }
 }
 
-int
-main (int argc, char *argv[])
+static void
+init_locale (void)
 {
-  gboolean was_empty, user_dirs_changed;
   char *locale_dir = NULL;
-  
+
   setlocale (LC_ALL, "");
   
   if (g_file_test (LOCALEDIR, G_FILE_TEST_IS_DIR))
-    locale_dir = g_strdup (LOCALEDIR);
+    {
+      locale_dir = g_strdup (LOCALEDIR);
+    }
   else
     {
       /* In case LOCALEDIR does not exist, e.x. xdg-user-dirs is installed in
@@ -851,7 +852,7 @@ main (int argc, char *argv[])
             }
 
           g_free (dir);
-	}
+        }
     }
 
   bindtextdomain (GETTEXT_PACKAGE, locale_dir);
@@ -859,7 +860,14 @@ main (int argc, char *argv[])
 
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
   textdomain (GETTEXT_PACKAGE);
+}
 
+int
+main (int argc, char *argv[])
+{
+  gboolean was_empty, user_dirs_changed;
+  
+  init_locale ();
   parse_argv (argc, argv);
 
   if (!load_all_configs ())
