@@ -22,6 +22,8 @@ AC_SUBST(GETTEXT_PACKAGE)
 
 AM_GNU_GETTEXT([external])
 
+IT_PROG_INTLTOOL([0.40.1])
+
 dnl ==========================================================================
 dnl Turn on the additional warnings last, so -Werror doesn't affect other tests.
 
@@ -81,7 +83,9 @@ PKG_CHECK_MODULES(GLIB, glib-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-AC_OUTPUT([ po/Makefile.in
+AC_OUTPUT([
 Makefile
+data/Makefile
 man/Makefile
+po/Makefile.in
 ])

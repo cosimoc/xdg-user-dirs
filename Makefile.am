@@ -1,6 +1,6 @@
 NULL =
 
-SUBDIRS=po
+SUBDIRS=po data
 if BUILD_DOCUMENTATION
 SUBDIRS += man
 endif
