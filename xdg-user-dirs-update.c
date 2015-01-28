@@ -17,6 +17,8 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#define XDG_DIRECTORY_GROUP "XDG Directory"
+
 typedef struct {
   char *name;
   char *path;
@@ -372,7 +374,7 @@ get_dir_for_desktop_file (char *desktop_file_path)
     goto out;
 
   parent_val = g_key_file_get_string (keyfile,
-                                      G_KEY_FILE_DESKTOP_TYPE_DIRECTORY,
+                                      XDG_DIRECTORY_GROUP,
                                       "Parent",
                                       NULL);
   if (!parent_val)
@@ -387,7 +389,7 @@ get_dir_for_desktop_file (char *desktop_file_path)
     goto out;
 
   translated_name = g_key_file_get_locale_string (keyfile,
-                                                  G_KEY_FILE_DESKTOP_TYPE_DIRECTORY,
+                                                  XDG_DIRECTORY_GROUP,
                                                   G_KEY_FILE_DESKTOP_KEY_NAME,
                                                   NULL, NULL);
   if (!translated_name)
