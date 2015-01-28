@@ -24,6 +24,11 @@ typedef struct {
   char *path;
 } Directory;
 
+typedef struct {
+  Directory parent;
+  gboolean is_builtin;
+} DefaultDirectory;
+
 Directory backwards_compat_dirs[] = {
   { "DESKTOP", "Desktop" },
   { "TEMPLATES", "Templates" },
@@ -47,14 +52,30 @@ static char *arg_set_value = NULL;
 static gboolean arg_force = FALSE;
 static gboolean arg_move = FALSE;
 
+static void
+directory_construct (Directory *dir, const char *name, const char *path)
+{
+  dir->name = g_strdup (name);
+  dir->path = g_strdup (path);
+}
+
 static Directory *
 directory_new (const char *name, const char *path)
 {
   Directory *dir;
   dir = g_new0 (Directory, 1);
-  dir->name = g_strdup (name);
-  dir->path = g_strdup (path);
+  directory_construct (dir, name, path);
   return dir;
+}
+
+static Directory *
+default_directory_new (const char *name, const char *path, gboolean is_builtin)
+{
+  DefaultDirectory *dir;
+  dir = g_new0 (DefaultDirectory, 1);
+  directory_construct ((Directory *) dir, name, path);
+  dir->is_builtin = is_builtin;
+  return (Directory *) dir;
 }
 
 static void
@@ -352,7 +373,7 @@ user_dirs_key_to_string (char *key)
 }
 
 static Directory *
-get_dir_for_desktop_file (char *desktop_file_path)
+get_default_dir_for_desktop_file (char *desktop_file_path)
 {
   GKeyFile *keyfile;
   char *special_dir_path;
@@ -400,7 +421,7 @@ get_dir_for_desktop_file (char *desktop_file_path)
 
  out:
   if (special_dir_path != NULL)
-    retval = directory_new (desktop_id, special_dir_path);
+    retval = default_directory_new (desktop_id, special_dir_path, FALSE);
   else
     retval = NULL;
 
@@ -450,7 +471,7 @@ load_default_application_dirs (void)
             continue;
 
           desktop_file_path = g_build_filename (path, basename, NULL);
-          new_dir = get_dir_for_desktop_file (desktop_file_path);
+          new_dir = get_default_dir_for_desktop_file (desktop_file_path);
 
           if (new_dir != NULL)
             app_dirs = g_list_prepend (app_dirs, new_dir);
@@ -526,7 +547,7 @@ load_default_dirs (void)
       if (*key == 0 || *value == 0)
 	continue;
       
-      dir = directory_new (key, value);
+      dir = default_directory_new (key, value, TRUE);
       default_dirs = g_list_prepend (default_dirs, dir);
     }
 
@@ -969,7 +990,7 @@ create_default_dirs (gboolean force, gboolean for_dummy_file)
           gint res = 0;
 
 	  /* Don't touch directories if we're writing a dummy output file */
-          if (!for_dummy_file)
+          if (!for_dummy_file && ((DefaultDirectory *) default_dir)->is_builtin)
             {
               res = g_mkdir_with_parents (path_name, 0755);
               if (res >= 0 && arg_move && (old_relative_path_name != NULL))
