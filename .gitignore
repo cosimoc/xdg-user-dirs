@@ -3,6 +3,7 @@ Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache
+compile
 config.guess
 config.h
 config.h.in
@@ -16,13 +17,18 @@ missing
 stamp-h1
 *~
 
+data/xdg-wallpapers.desktop
+
 man/user-dirs.conf.5
 man/user-dirs.defaults.5
 man/user-dirs.dirs.5
 man/xdg-user-dir.1
 man/xdg-user-dirs-update.1
 
+po/.intltool-merge-cache
+po/Makefile.in.in
 po/remove-potcdate.sed
+po/stamp-it
 po/stamp-po
 po/xdg-user-dirs.pot
 po/POTFILES
